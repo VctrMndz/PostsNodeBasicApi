@@ -10,11 +10,11 @@ service.verifyCreateFields = ({ title, description, image, user }) => {
 		}
 	};
 
-	if (!title || !user) {
+	if (!title) {
 		serviceResponse = {
 			success: false,
 			content: {
-				error: ' empty fields'
+				error: 'Title is required'
 			}
 		};
 
@@ -47,11 +47,31 @@ service.verifyUpdateFields = ({ title, description, image }) => {
 	return serviceResponse;
 };
 
-service.create = async ({ title, description, image, user }) => {
+service.verifyUserAuthority = (post, user) => {
 	let serviceResponse = {
 		success: true,
 		content: {
-			message: 'Post Created!'
+			message: 'Verified user ownership'
+		}
+	};
+
+	if (!post.user._id.equals(user._id)) {
+		serviceResponse = {
+			success: false,
+			content: {
+				error: 'This post doesnt belong to you'
+			}
+		};
+	}
+
+	return serviceResponse;
+};
+
+service.create = async ({ title, description, image }, userID) => {
+	let serviceResponse = {
+		success: true,
+		content: {
+			message: 'Post Created'
 		}
 	};
 
@@ -60,7 +80,7 @@ service.create = async ({ title, description, image, user }) => {
 			title,
 			description,
 			image,
-			user
+			user: userID
 		});
 
 		const postSaved = await post.save();
@@ -69,14 +89,14 @@ service.create = async ({ title, description, image, user }) => {
 			serviceResponse = {
 				success: false,
 				content: {
-					error: 'Post not created!'
+					error: 'Post not created'
 				}
 			};
 		}
 
 		return serviceResponse;
 	} catch (error) {
-		throw new Error('Internal Server Error');
+		throw error;
 	}
 };
 
@@ -89,7 +109,7 @@ service.findOneByID = async (_id) => {
 	};
 
 	try {
-		const post = await PostModel.findById(_id).exec();
+		const post = await PostModel.findById(_id).populate('user', 'username _id').exec();
 
 		if (!post) {
 			serviceResponse = {
@@ -104,7 +124,24 @@ service.findOneByID = async (_id) => {
 
 		return serviceResponse;
 	} catch (error) {
-		throw new Error('Internal Server Error');
+		throw error;
+	}
+};
+
+service.findAllByUserID = async (userID) => {
+	let serviceResponse = {
+		success: true,
+		content: {}
+	};
+
+	try {
+		const posts = await PostModel.find({ user: userID }).populate('user', 'username _id').exec();
+
+		serviceResponse.content = posts;
+
+		return serviceResponse;
+	} catch (error) {
+		throw error;
 	}
 };
 
@@ -138,9 +175,7 @@ service.addLike = async (post) => {
 service.findAll = async (page, limit) => {
 	let serviceResponse = {
 		success: true,
-		content: {
-			message: 'Posts'
-		}
+		content: {}
 	};
 
 	try {
@@ -149,10 +184,12 @@ service.findAll = async (page, limit) => {
 			limit: limit,
 			sort: [
 				{
-					updatedAt: -1
+					createdAt: -1
 				}
 			]
-		}).exec();
+		})
+			.populate('user', 'username _id')
+			.exec();
 
 		serviceResponse.content = {
 			posts,
@@ -160,9 +197,10 @@ service.findAll = async (page, limit) => {
 			page,
 			limit
 		};
+
 		return serviceResponse;
 	} catch (error) {
-		throw new Error('Internal Server Error');
+		throw error;
 	}
 };
 
@@ -175,29 +213,31 @@ service.updateOneByID = async (post, contentToUpdate) => {
 	};
 
 	try {
-		const updatedPost = await PostModel.findByIdAndUpdate(post._id, {
-			...contentToUpdate,
-			$push: {
-				history: {
-					title: post.title,
-					description: post.description,
-					image: post.image,
-					modifiedAt: new Date()
-				}
-			}
+		post.history.push({
+			title: post.title,
+			description: post.description,
+			image: post.image,
+			modifiedAt: new Date()
 		});
+
+		Object.keys(contentToUpdate).forEach((key) => {
+			post[key] = contentToUpdate[key];
+		});
+
+		const updatedPost = await post.save();
 
 		if (!updatedPost) {
 			serviceResponse = {
 				success: false,
-				error: 'Post not updated'
+				content: {
+					error: 'Post not updated!'
+				}
 			};
 		}
 
 		return serviceResponse;
 	} catch (error) {
-		console.log(error);
-		throw new Error('Internal Server Error');
+		throw error;
 	}
 };
 

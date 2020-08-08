@@ -236,4 +236,69 @@ service.updateByID = async (user, contentToUpdate) => {
 	}
 };
 
+service.registerToken = async (user, token) => {
+	let serviceResponse = {
+		success: true,
+		content: {
+			message: 'Token registered'
+		}
+	};
+	try {
+		user.validTokens.push(token);
+
+		const userUpdated = await user.save();
+		if (!userUpdated) {
+			serviceResponse = {
+				success: false,
+				content: {
+					error: 'Token not registered '
+				}
+			};
+		}
+
+		return serviceResponse;
+	} catch (error) {
+		throw error;
+	}
+};
+
+service.registerSavedPost = async (user, postID) => {
+	let serviceResponse = {
+		success: true,
+		content: {
+			message: 'Post registered'
+		}
+	};
+
+	try {
+		const alreadyExists = user.savedPosts.some((post) => post.equals(postID));
+		if (alreadyExists) {
+			serviceResponse = {
+				success: true,
+				content: {
+					message: 'Post already in list'
+				}
+			};
+
+			return serviceResponse;
+		}
+
+		user.savedPosts.push(postID);
+		const userUpdated = await user.save();
+
+		if (!userUpdated) {
+			serviceResponse = {
+				success: false,
+				content: {
+					error: 'Cannot register post'
+				}
+			};
+		}
+
+		return serviceResponse;
+	} catch (error) {
+		throw error;
+	}
+};
+
 module.exports = service;

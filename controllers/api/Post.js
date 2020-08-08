@@ -2,6 +2,7 @@ const PostService = require('../../services/Post');
 const { verifyID } = require('../../utils/MongoUtils');
 const { verifyNumberType } = require('../../utils/MiscUtils');
 
+const UserService = require('../../services/User');
 const controller = {};
 
 controller.create = async (req, res) => {
@@ -11,14 +12,18 @@ controller.create = async (req, res) => {
 	}
 
 	try {
-		const createPost = await PostService.create(req.body);
+		const { user } = req;
+
+		const createPost = await PostService.create(req.body, user._id);
 		if (!createPost.success) {
-			return res.status(500).json(createPost.content);
+			return res.status(409).json(createPost.content);
 		}
 
 		res.status(201).json(createPost.content);
 	} catch (error) {
-		return res.status(500).json({ error: error.message });
+		return res.status(500).json({
+			error: 'Internal Server Error'
+		});
 	}
 };
 
@@ -106,14 +111,24 @@ controller.updatePost = async (req, res) => {
 			return res.status(404).json(postExists.content);
 		}
 
-		const postUpdated = await PostService.updateOneByID(postExists.content, fieldVerified.content);
-		if (!postUpdated.success) {
-			return res.status(500).json(postUpdated.content);
+		const { user } = req;
+		const userAuthority = PostService.verifyUserAuthority(postExists.content, user);
+
+		if (!userAuthority.success) {
+			return res.status(401).json(userAuthority.content);
 		}
 
-		res.status(200).json(postUpdated.content);
+		const postUpdated = await PostService.updateOneByID(postExists.content, fieldVerified.content);
+
+		if (!postUpdated.success) {
+			return res.status(409).json(postUpdated.content);
+		}
+
+		return res.status(200).json(postUpdated.content);
 	} catch (error) {
-		return res.status(500).json({ error: error.message });
+		return res.status(500).json({
+			error: 'Internal server error'
+		});
 	}
 };
 
@@ -140,6 +155,30 @@ controller.deleteOneByID = async (req, res) => {
 		res.status(200).json(deleted.content);
 	} catch (error) {
 		return res.status(500).json({ error: error.message });
+	}
+};
+
+controller.findByUser = async (req, res) => {
+	const { id = req.user._id } = req.query;
+
+	if (!verifyID(id)) {
+		return res.status(400).json({
+			error: 'Error in ID'
+		});
+	}
+
+	try {
+		const userExists = await UserService.findOneByID(id);
+		if (!userExists.success) {
+			return res.status(404).json(userExists.content);
+		}
+
+		const postsByUser = await PostService.findAllByUserID(id);
+		return res.status(200).json(postsByUser.content);
+	} catch (error) {
+		return res.status(500).json({
+			error: 'Internal Server Error'
+		});
 	}
 };
 

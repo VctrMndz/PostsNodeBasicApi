@@ -1,12 +1,11 @@
-const { verifyToken } = require('../utils/JWTUtils');
-const { verifyID } = require('../utils/MongoUtils');
+const { verifyToken } = require('./../utils/JWTUtils');
+const { verifyID } = require('./../utils/MongoUtils');
 const UserService = require('../services/User');
 
 const middleware = {};
 
 middleware.verifyAuth = async (req, res, next) => {
 	const { authorization } = req.headers;
-
 	if (!authorization) {
 		return res.status(403).json({
 			error: 'Authorization is required'
@@ -19,7 +18,6 @@ middleware.verifyAuth = async (req, res, next) => {
 			error: 'Incorrect prefix'
 		});
 	}
-
 	const tokenObject = verifyToken(token);
 	if (!tokenObject) {
 		return res.status(401).json({
@@ -34,17 +32,21 @@ middleware.verifyAuth = async (req, res, next) => {
 		});
 	}
 
-	/**
-	 * Obtener el usuario!
-	 */
-
 	const userExists = await UserService.findOneByID(userID);
 	if (!userExists.success) {
 		return res.status(404).json(userExists.content);
 	}
 
-	req.user = userExists.content;
+	const user = userExists.content;
 
+	const indexOfToken = user.validTokens.findIndex((userToken) => userToken === token);
+	if (indexOfToken < 0) {
+		return res.status(403).json({
+			error: 'Unregistered token'
+		});
+	}
+
+	req.user = user;
 	next();
 };
 

@@ -24,24 +24,15 @@ const UserSchema = new Schema(
 			required: true
 		},
 		photo: String,
-		posts: {
-			type: [
-				{
-					type: mongoose.Schema.Types.ObjectId,
-					rel: 'Post'
-				}
-			],
-			default: []
-		},
 		savedPosts: {
 			type: [
 				{
 					type: mongoose.Schema.Types.ObjectId,
-					rel: 'Post'
+					ref: 'Post'
 				}
-			],
-			default: []
-		}
+			]
+		},
+		validTokens: [ String ]
 	},
 	{
 		timestamps: true
@@ -57,5 +48,4 @@ UserSchema.methods = {
 		return Crypto.createHmac('sha256', password).digest('hex') === this.hashedPassword;
 	}
 };
-
 module.exports = mongoose.model('User', UserSchema);
