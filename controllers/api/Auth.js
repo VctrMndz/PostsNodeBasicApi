@@ -1,19 +1,17 @@
-const UserService = require('../../services/User');
+const UserService = require('./../../services/User');
+const { createToken } = require('../../utils/JWTUtils');
 
 const controller = {};
 
-const { createToken } = require('../../utils/JWTUtils');
-
 controller.register = async (req, res) => {
-	const fieldsValidation = UserService.verifyRegisterFields(req.body);
-	if (!fieldsValidation.success) {
-		return res.status(400).json(fieldsValidation.content);
+	const fieldValidation = UserService.verifyRegisterFields(req.body);
+	if (!fieldValidation.success) {
+		return res.status(400).json(fieldValidation.content);
 	}
-
 	try {
 		const { username, email } = req.body;
+		const userExists = await UserService.findOneUsernameEmail(username, email);
 
-		const userExists = await UserService.findOneByUsernameEmail(username, email);
 		if (userExists.success) {
 			return res.status(409).json({
 				error: 'User already exists'
@@ -24,9 +22,8 @@ controller.register = async (req, res) => {
 		if (!userRegistered.success) {
 			return res.status(409).json(userRegistered.content);
 		}
-
 		return res.status(201).json(userRegistered.content);
-	} catch (error) {
+	} catch (e) {
 		return res.status(500).json({
 			error: 'Internal Server Error'
 		});
@@ -34,30 +31,38 @@ controller.register = async (req, res) => {
 };
 
 controller.login = async (req, res) => {
-	const fieldsValidation = UserService.verifyLoginFields(req.body);
-	if (!fieldsValidation.success) {
-		return res.status(400).json(fieldsValidation.content);
+	const fieldValidation = UserService.verifyLoginFields(req.body);
+	if (!fieldValidation.success) {
+		return res.status(400).json(fieldValidation.content);
 	}
 
 	try {
 		const { identifier, password } = req.body;
 
-		const userExists = await UserService.findOneByUsernameEmail(identifier, identifier);
+		const userExists = await UserService.findOneUsernameEmail(identifier, identifier);
 		if (!userExists.success) {
 			return res.status(404).json(userExists.content);
 		}
 
-		if (!userExists.content.comparePassword(password)) {
-			return res.status(403).json({
-				error: 'Incorrect Password'
+		const user = userExists.content;
+
+		if (!user.comparePassword(password)) {
+			return res.status(401).json({
+				error: 'Incorrect password'
 			});
 		}
 
+		const token = createToken(user._id);
+
+		const tokenRegistered = await UserService.registerToken(user, token);
+		if (!tokenRegistered.success) {
+			return res.status(409).json(tokenRegistered.content);
+		}
+
 		return res.status(200).json({
-			token: createToken(userExists.content._id)
+			token: token
 		});
 	} catch (error) {
-		console.log(error);
 		return res.status(500).json({
 			error: 'Internal server error'
 		});
